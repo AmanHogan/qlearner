@@ -1,107 +1,98 @@
 import numpy as np
+import logging
 from typing import List, Optional, Union, Any, Callable
 
-class QLearningAgent:
+logging.basicConfig(level=logging.INFO)
 
-    DEFAULT_LR = .01
-    DEFAULT_DISCOUNT = 1
-    DEAULT_EXPLORE = .5
+class QLearningAgent:
+    DEFAULT_LR = 0.01
+    DEFAULT_DISCOUNT = 1.0
+    DEFAULT_EXPLORE = 0.5
     DEFAULT_NSTEPS = 100
+    DEFAULT_NEPS = 10
     DEFAULT_GOAL_MSG = "Reached Terminal state"
 
-    def __init__(self, state_space: List[Any], action_space: List[Any], 
-                 env: Any, terminals: List[Any]=[], 
-                 policy: Optional [Union[Callable[[Any], Any], None]] = None, 
-                 lr: float = DEFAULT_LR, discount: float = DEFAULT_DISCOUNT, 
-                 explore: float = DEAULT_EXPLORE, terminal_msg: str = DEFAULT_GOAL_MSG):
-                
+    def __init__(self, state_space: List[Any], action_space: List[Any], env: Any, terminals: List[Any] = [], 
+                 policy: Optional[Union[Callable[[Any], Any], None]] = None, lr: float = DEFAULT_LR, 
+                 discount: float = DEFAULT_DISCOUNT, explore: float = DEFAULT_EXPLORE, 
+                 terminal_msg: str = DEFAULT_GOAL_MSG, n_eps: int = DEFAULT_NEPS, 
+                 n_steps: int = DEFAULT_NSTEPS, debug: bool = False):
+        self.debug = debug
         self.state_space = state_space
         self.action_space = action_space
         self.q_table = None
-                
         self.lr = lr
         self.discount = discount
         self.explore = explore
-        self.exploit = 1 - self.explore
-    
+        self.exploit = 1 - explore
         self.terminals = np.array(terminals)
         self.env = env
-
-        if policy != None:
-            self.policy = policy
-        else:
-            self.policy = self.greedy
-
+        self.policy = policy if policy else self.greedy
         self.goals_found = 0
         self.total_rewards = 0
-
-        self.rewards_per_episode = np.array([])
-        self.history = np.empty((0, 6), dtype=object)  
-
-        self.episode_count = 0
+        self.rew_per_ep = np.array([])
+        self.history = np.empty((0, 6), dtype=object)
+        self.ep_idx = 0
         self.terminal_msg = terminal_msg
+        self.n_steps = n_steps
+        self.n_eps = n_eps
+        
+        self.validate_parameters()
+
+    def validate_parameters(self):
+        if not isinstance(self.state_space, list) or not isinstance(self.action_space, list):
+            raise ValueError("State space and action space must be lists.")
+        if not (0 <= self.explore <= 1):
+            raise ValueError("Explore rate must be between 0 and 1.")
+        if not (0 <= self.lr <= 1):
+            raise ValueError("Learning rate must be between 0 and 1.")
+        if not (0 <= self.discount <= 1):
+            raise ValueError("Discount factor must be between 0 and 1.")
 
     def init_q_table(self) -> None:
-        self.q_table = np.zeros((len(self.state_space), len(self.action_space)))
-    
+        try:
+            self.q_table = np.zeros((len(self.state_space), len(self.action_space)))
+            if self.debug:
+                logging.info('Q table successfully created')
+        except Exception as err:
+            logging.error(f'Failed to initialize Q table: {err}')
+            raise
+
     def stoi(self, state: Any) -> int:
-        """Gets index of state in statespace
-
-        Args:
-            state (Any): state
-
-        Returns:
-            int: state index
-        """
         return self.state_space.index(state)
 
     def atoi(self, action: Any) -> int:
-        """Gets index of action in actions space
-
-        Args:
-            action (Any): action
-
-        Returns:
-            int: action index
-        """
         return self.action_space.index(action)
-    
-    def run_episode(self, max_steps: int = DEFAULT_NSTEPS, debug:bool = True) -> None:
-        """Runs a full episode given the number of steps
 
-        Args:
-            max_steps (int, optional): number of steps. Defaults to DEFAULT_NSTEPS.
-            debug (bool, optional): prints out info for each step. Defaults to True.
-        """
+    def run_episode(self) -> None:
+        s = self.env.reset()
+        tr = 0
 
-        state = self.env.reset() 
-        total_rewards = 0
+        for step in range(self.n_steps):
+            a = self.policy(s)
+            ns, reward = self.env.step(s, a)
+            self.update_table(s, a, ns, reward)
+            self.update_info(s, a, ns, reward, self.ep_idx, step)
 
-        for step in range(max_steps):
+            if self.debug:
+                self.get_current()
 
-            action = self.policy(state)
-            next_state, reward = self.env.step(state, action)
-            
-            self.update_table(state, action, next_state, reward)
-            self.update_info(state, action, next_state, reward, self.episode_count,step )
-            
-            if debug:
-                self.print_info()
-            
-            total_rewards += reward
+            tr += reward
 
-            if self.env.is_terminal(state, self.terminals):
-                print(self.terminal_msg )
+            if self.env.is_terminal(s, self.terminals):
+                logging.info(self.terminal_msg)
                 self.goals_found += 1
                 break
-            
-            
-            state = next_state
 
-        self.episode_count += 1
-        self.update_rewards_per_epsiode(total_rewards)
-    
-    def greedy(self, state) -> Any:
+            s = ns
+
+        self.ep_idx += 1
+        self.rew_per_ep = np.append(self.rew_per_ep, tr)
+
+    def greedy(self, state: Any) -> Any:
+        if self.q_table is None:
+            logging.error('Q table must be initialized first!')
+            raise ValueError('Q table must be initialized first!')
 
         if np.random.choice(['explore', 'exploit'], p=[self.explore, self.exploit]) == 'explore':
             return np.random.choice(self.action_space)
@@ -110,17 +101,31 @@ class QLearningAgent:
             a_idx = np.argmax(self.q_table[s_idx])
             return self.action_space[a_idx]
 
-    def update_table(self, state:Any, action:Any, next_state:Any, reward:Any) -> None:
+    def update_table(self, state: Any, action: Any, next_state: Any, reward: Any) -> None:
+        if self.q_table is None:
+            logging.error('Q table must be initialized first!')
+            raise ValueError('Q table must be initialized first!')
+
         s_idx = self.stoi(state)
         a_idx = self.atoi(action)
         ns_idx = self.stoi(next_state)
         self.q_table[s_idx, a_idx] += self.lr * (reward + self.discount * np.max(self.q_table[ns_idx]) - self.q_table[s_idx, a_idx])
 
-    def update_rewards_per_epsiode(self, total_rewards):
-        self.rewards_per_episode = np.append(self.rewards_per_episode, total_rewards)
-        
-    def update_info(self, s, a, ns, r, ep, step):
-        self.history = np.append(self.history,  np.array([[s, a, ns, r, ep, step]], dtype=object), axis=0)
+    def update_info(self, state: Any, action: Any, next_state: Any, reward: Any, episode: Any, step: Any) -> None:
+        self.history = np.append(self.history, np.array([[state, action, next_state, reward, episode, step]], dtype=object), axis=0)
 
-    def print_info(self):
-        print(self.history[len(self.history)-1])
+    def get_current(self) -> None:
+        logging.info(f'Current state-action pair: {self.history[len(self.history)-1]}')
+
+    def train(self) -> None:
+        self.init_q_table()
+        for ep in range(self.n_eps):
+            self.run_episode()
+            if self.debug:
+                logging.info(f'Finished episode {ep} with rewards of {self.rew_per_ep[ep]}')
+
+    def save_q_table(self, file_path: str) -> None:
+        np.save(file_path, self.q_table)
+
+    def load_q_table(self, file_path: str) -> None:
+        self.q_table = np.load(file_path)
