@@ -2,6 +2,7 @@ import numpy as np
 import logging
 from typing import List, Optional, Union, Any, Callable
 from tabulate import tabulate
+import time
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,12 +35,14 @@ class QLearningAgent:
         self.goals_found = 0
         self.total_rewards = 0
         self.rew_per_ep = np.array([])
+        self.avg_rewards_per_ep = np.array([])
         self.history = np.empty((0, 6), dtype=object)
         self.ep_idx = 0
         self.terminal_msg = terminal_msg
         self.n_steps = n_steps
         self.n_eps = n_eps
         self.file_path = file_path
+        self.start_time = time.time()
         
         self.validate_parameters()
 
@@ -100,6 +103,7 @@ class QLearningAgent:
 
         self.ep_idx += 1
         self.rew_per_ep = np.append(self.rew_per_ep, tr)
+        self.avg_rewards_per_ep = np.append(self.avg_rewards_per_ep, sum(self.rew_per_ep)/(self.ep_idx+1))
 
     def greedy(self, state: Any) -> Any:
         
@@ -148,7 +152,7 @@ class QLearningAgent:
             self.run_episode(ep)
             if self.debug:
                 logging.info(f'Finished episode {ep} with rewards of {self.rew_per_ep[ep]}')
-
+        self.avg_rewards_per_ep = np.delete(self.avg_rewards_per_ep, 0)
         if save_qtable:
             self.save_q_table()
             print(save_qtable)
@@ -158,6 +162,8 @@ class QLearningAgent:
 
     def load_q_table(self) -> None:
         self.q_table = np.load(self.file_path+'.npy')
+        print(self.q_table)
+        #exit()
 
     def get_learner_info(self):
         table =[
@@ -171,7 +177,14 @@ class QLearningAgent:
             ["NUMBER OF GOALS FOUND", self.goals_found],
             ["MAX NUMEBR OF STEPS", self.n_steps],
             ["MAX NUMBER OF EPISODES",self.n_eps ],
-            ["FILE PATH OF QTABLE", self.file_path]
+            ["FILE PATH OF QTABLE", self.file_path],
+            ["RUNTIME (s)", time.time() - self.start_time]
 
         ]
         return str(tabulate(table))
+
+    def set_time(self):
+        self.start_time = time.time()
+
+
+    

@@ -7,17 +7,21 @@ import numpy as np
 from .base_env import Environment
 
 
-class CustomEnvironment (Environment):
+class GridWorldExample (Environment):
     """
     Models the grid world environment for fully observable environemnt.
     """
 
-    def __init__(self, state, goal, obstacles):
+    def __init__(self, start, goal, obstacles, max_x:int = 20, max_y:int = 20):
         super().__init__()
-        self.curr_state = state # snapshot of env
-        self.t = 0 # time that increments by timestep
+        self.curr_state = start
+        self.t = 0
         self.goal_state = goal
         self.obstacles = obstacles
+        self.max_x = max_x
+        self.max_y = max_y
+        self.state_space = [(x, y) for x in range(1, max_x+1) for y in range(1, max_y+1)]
+        self.action_space = ['UP', 'DOWN', 'LEFT', 'RIGHT']
     
     def state_transition(self, state, action):
         """
@@ -31,49 +35,19 @@ class CustomEnvironment (Environment):
             next_state: new snapshot of environment
         """
 
-        x, y, orien = state
+        x, y = state
 
-        if action == 'TURN RIGHT':
-            if orien == 'UP':
-                orien = 'RIGHT'
-            elif orien == 'RIGHT':
-                orien = 'DOWN'
-            elif orien == 'DOWN':
-                orien = 'LEFT'
-            elif orien == 'LEFT':
-                orien = 'UP'
-            
-        elif action == 'TURN LEFT':
-            if orien == 'UP':
-                orien = 'LEFT'
-            elif orien == 'LEFT':
-                orien = 'DOWN'
-            elif orien == 'DOWN':
-                orien = 'RIGHT'
-            elif orien == 'RIGHT':
-                orien = 'UP'
-            
-        elif action == 'FORWARD':
-            if orien == 'UP':
-                y = y + 1
-            elif orien == 'DOWN':
-                y = y - 1
-            elif orien == 'RIGHT':
-                x = x + 1
-            elif orien == 'LEFT':
-                x = x - 1
+        if action == 'UP':
+            y = y + 1
+        elif action == 'DOWN':
+            y = y - 1
+        elif action == 'LEFT':
+            x = x - 1
+        elif action == 'RIGHT':
+            x = x + 1
 
-        elif action == 'BACKWARD':
-            if orien == 'UP':
-                y = y - 1
-            elif orien == 'DOWN':
-                y = y + 1
-            elif orien == 'RIGHT':
-                x = x - 1
-            elif orien == 'LEFT':
-                x = x + 1
+        new_state = (x, y)
 
-        new_state = (x, y, orien)
         return new_state
 
     def step(self, state, action):
@@ -92,12 +66,6 @@ class CustomEnvironment (Environment):
 
         return next_state, next_reward
     
-    def print_state(self, state, action, next_state, reward, ep, it):
-        print('-------------------------')
-        print('EPISODE:', ep, 'ITERATION', it )
-        print("STATE:", state, " ACTION: ",action)
-        print("NEXT STATE: ", next_state, " REWARD: ", reward)
-        print('-------------------------')
 
     def reward_func(self, state, next_state):
         """
@@ -111,34 +79,33 @@ class CustomEnvironment (Environment):
             float, tuple: reward, validated state
         """
         
-        x_1, y_1, orien_1 = state
-        x_2, y_2, orien_2 = next_state
+        x_1, y_1 = state
+        x_2, y_2 = next_state
 
         reward = 0
         
-        if (x_2, y_2)in self.obstacles:
-            reward = 1
+        if (x_2, y_2) in self.obstacles:
+            reward += -.1
             x_2 = x_1
             y_2 = y_1
-            orien_2 = orien_1
 
         if (x_2,y_2) == self.goal_state:
             reward = 100
 
-        if x_2 > 20 or y_2 > 20 or x_2 < 1 or  y_2 < 1:
+        if x_2 > self.max_x or y_2 > self.max_y or x_2 < 1 or  y_2 < 1:
             x_2 = x_1
             y_2 = y_1
-            orien_2 = orien_1
-            reward = 1
+            reward += -.1
            
         else:
-            reward = -.1
-        next_state = (x_2, y_2, orien_2)
+            reward = -0
+        
+        next_state = (x_2, y_2)
         return reward, next_state
     
     
     def reset(self):
-        return (1,1,'UP')
+        return (1,1)
 
     def is_terminal(self, state, terminals):
         state_np = np.array(state)
