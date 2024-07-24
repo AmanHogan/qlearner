@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 from typing import List, Optional, Union, Any, Callable
+from tabulate import tabulate
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,7 +18,7 @@ class QLearningAgent:
                  policy: Optional[Union[Callable[[Any], Any], None]] = None, lr: float = DEFAULT_LR, 
                  discount: float = DEFAULT_DISCOUNT, explore: float = DEFAULT_EXPLORE, 
                  terminal_msg: str = DEFAULT_GOAL_MSG, n_eps: int = DEFAULT_NEPS, 
-                 n_steps: int = DEFAULT_NSTEPS, debug: bool = False):
+                 n_steps: int = DEFAULT_NSTEPS, debug: bool = False, file_path:str='q_table'):
         
         self.debug = debug
         self.state_space = state_space
@@ -38,6 +39,7 @@ class QLearningAgent:
         self.terminal_msg = terminal_msg
         self.n_steps = n_steps
         self.n_eps = n_eps
+        self.file_path = file_path
         
         self.validate_parameters()
 
@@ -130,10 +132,15 @@ class QLearningAgent:
     def get_current(self) -> None:
         logging.info(f'Current state-action pair: {self.history[len(self.history)-1]}')
 
-    def train(self, load_qtable:bool = False, save_qtable:bool = False, filepath:str='q_table') -> None:
+    def train(self, load_qtable:bool = False, save_qtable:bool = False) -> None:
         
         if load_qtable:
-            self.load_q_table(filepath)
+            try:
+                self.load_q_table()
+            except FileNotFoundError as e:
+                print(e)
+                print("Starting learning from scratch")
+                self.init_q_table()
         else:
             self.init_q_table()
 
@@ -143,11 +150,28 @@ class QLearningAgent:
                 logging.info(f'Finished episode {ep} with rewards of {self.rew_per_ep[ep]}')
 
         if save_qtable:
-            self.save_q_table(filepath)
+            self.save_q_table()
             print(save_qtable)
 
-    def save_q_table(self, file_path: str) -> None:
-        np.save(file_path, self.q_table)
+    def save_q_table(self) -> None:
+        np.save(self.file_path, self.q_table)
 
-    def load_q_table(self, file_path: str) -> None:
-        self.q_table = np.load(file_path+'.npy')
+    def load_q_table(self) -> None:
+        self.q_table = np.load(self.file_path+'.npy')
+
+    def get_learner_info(self):
+        table =[
+            ["STATE SPACE SIZE", len(self.state_space)],
+            ["ACTION SPACE SIZE", len(self.action_space)],
+            ["QTABLE SHAPE", self.q_table.shape],
+            ["LEARNING RATE", self.lr],
+            ["DISCOUNTED SUM", self.discount],
+            ["EXPLORATION RATE", self.explore],
+            ["NUMBER OF TERMINAL STATES", len(self.terminals)],
+            ["NUMBER OF GOALS FOUND", self.goals_found],
+            ["MAX NUMEBR OF STEPS", self.n_steps],
+            ["MAX NUMBER OF EPISODES",self.n_eps ],
+            ["FILE PATH OF QTABLE", self.file_path]
+
+        ]
+        return str(tabulate(table))
