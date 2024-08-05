@@ -83,26 +83,33 @@ class GridWorldExample (Environment):
         x_2, y_2 = next_state
 
         reward = 0
-        
+
         if (x_2, y_2) in self.obstacles:
-            reward += -.1
+            reward += -0.01
             x_2 = x_1
             y_2 = y_1
 
-        if (x_2,y_2) == self.goal_state:
-            reward = 100
+        if (x_2, y_2) == self.goal_state:
+            reward += 10
 
-        if x_2 > self.max_x or y_2 > self.max_y or x_2 < 1 or  y_2 < 1:
+        if x_2 > self.max_x or y_2 > self.max_y or x_2 < 1 or y_2 < 1:
             x_2 = x_1
             y_2 = y_1
-            reward += -.1
-           
+            reward += -0.01
         else:
-            reward = -0
-        
+            # Calculate Manhattan distance from next_state to goal_state
+            goal_x, goal_y = self.goal_state
+            manhattan_distance = abs(x_2 - goal_x) + abs(y_2 - goal_y)
+            
+            # You can adjust this factor to balance its impact on the reward
+            distance_factor = 0.1
+            
+            # Add negative Manhattan distance to reward (closer to goal is better)
+            reward += -distance_factor * manhattan_distance
+
         next_state = (x_2, y_2)
         return reward, next_state
-    
+        
     
     def reset(self):
         return (1,1)

@@ -150,19 +150,16 @@ class QLearningAgent:
 
         for ep in range(self.n_eps):
             self.run_episode(ep)
-            if self.debug:
-                logging.info(f'Finished episode {ep} with rewards of {self.rew_per_ep[ep]}')
+            logging.info(f'Finished episode {ep} with rewards of {self.rew_per_ep[ep]}')
         self.avg_rewards_per_ep = np.delete(self.avg_rewards_per_ep, 0)
         if save_qtable:
             self.save_q_table()
-            print(save_qtable)
 
     def save_q_table(self) -> None:
         np.save(self.file_path, self.q_table)
 
     def load_q_table(self) -> None:
         self.q_table = np.load(self.file_path+'.npy')
-        print(self.q_table)
         #exit()
 
     def get_learner_info(self):
