@@ -3,34 +3,25 @@ import logging
 from typing import List, Optional, Union, Any, Callable
 from tabulate import tabulate
 import time
+from .tdlearner import TemporalDifferenceLearner
 
 logging.basicConfig(level=logging.INFO)
 
-class QLearningAgent:
+class QLearningAgent(TemporalDifferenceLearner):
     
-    DEFAULT_LR = 0.01
-    DEFAULT_DISCOUNT = 1.0
-    DEFAULT_EXPLORE = 0.5
-    DEFAULT_NSTEPS = 100
-    DEFAULT_NEPS = 10
     DEFAULT_GOAL_MSG = "Reached Terminal state"
 
     def __init__(self, state_space: List[Any], action_space: List[Any], env: Any, terminals: List[Any] = [], 
-                 policy: Optional[Union[Callable[[Any], Any], None]] = None, lr: float = DEFAULT_LR, 
-                 discount: float = DEFAULT_DISCOUNT, explore: float = DEFAULT_EXPLORE, 
-                 terminal_msg: str = DEFAULT_GOAL_MSG, n_eps: int = DEFAULT_NEPS, 
-                 n_steps: int = DEFAULT_NSTEPS, debug: bool = False, file_path:str='q_table'):
+                 policy: Optional[Union[Callable[[Any], Any], None]] = None, lr: float = .001, 
+                 discount: float = .998, explore: float = .2, 
+                 terminal_msg: str = DEFAULT_GOAL_MSG, n_eps: int = 100, 
+                 n_steps: int = 1000, debug: bool = False, file_path:str='q_table'):
         
-        self.debug = debug
-        self.state_space = state_space
-        self.action_space = action_space
+        super().__init__("Q Learner", state_space, action_space, env, terminals, lr, discount, debug)
+        
         self.q_table = None
-        self.lr = lr
-        self.discount = discount
         self.explore = explore
         self.exploit = 1 - explore
-        self.terminals = np.array(terminals)
-        self.env = env
         self.policy = policy if policy else self.greedy
         self.goals_found = 0
         self.total_rewards = 0
@@ -182,6 +173,17 @@ class QLearningAgent:
 
     def set_time(self):
         self.start_time = time.time()
+
+    def __str__(self):
+            return (f"QLearner(name={self.name}, env={self.env}, state_space_size={len(self.state_space)}, action_space_size={len(self.action_space)}, "
+                    f"lr={self.lr}, discount={self.discount}, explore={self.explore}, n_eps={self.n_eps}, n_steps={self.n_steps}, "
+                    f"goals_found={self.goals_found}, total_rewards={self.total_rewards})")
+
+    def __repr__(self):
+        return (f"QLearner(name={self.name!r}, state_space={self.state_space!r}, action_space={self.action_space!r}, env={self.env!r}, "
+                f"terminals={self.terminals!r}, policy={self.policy!r}, lr={self.lr!r}, discount={self.discount!r}, "
+                f"explore={self.explore!r}, terminal_msg={self.terminal_msg!r}, n_eps={self.n_eps!r}, "
+                f"n_steps={self.n_steps!r}, debug={self.debug!r}, file_path={self.file_path!r})")
 
 
     
